@@ -271,6 +271,15 @@ if not exist "!RABBITMQ_QUORUM_DIR!" (
 )
 for /f "delims=" %%F in ("!RABBITMQ_QUORUM_DIR!") do set RABBITMQ_QUORUM_DIR=%%~sF
 
+REM [ "x" = "x$RABBITMQ_FEATURE_FLAGS_FILE" ] && RABBITMQ_FEATURE_FLAGS_FILE=${RABBITMQ_MNESIA_DIR}/quorum
+if "!RABBITMQ_FEATURE_FLAGS_FILE!"=="" (
+    set RABBITMQ_FEATURE_FLAGS_FILE=!RABBITMQ_MNESIA_DIR!\feature_flags
+)
+if not exist "!RABBITMQ_FEATURE_FLAGS_FILE!" (
+    mkdir "!RABBITMQ_FEATURE_FLAGS_FILE!"
+)
+for /f "delims=" %%F in ("!RABBITMQ_FEATURE_FLAGS_FILE!") do set RABBITMQ_FEATURE_FLAGS_FILE=%%~sF
+
 REM [ "x" = "x$RABBITMQ_PID_FILE" ] && RABBITMQ_PID_FILE=${PID_FILE}
 REM [ "x" = "x$RABBITMQ_PID_FILE" ] && RABBITMQ_PID_FILE=${RABBITMQ_MNESIA_DIR}.pid
 REM No Windows equivalent
@@ -281,6 +290,15 @@ if "!RABBITMQ_BOOT_MODULE!"=="" (
         set RABBITMQ_BOOT_MODULE=rabbit
     ) else (
         set RABBITMQ_BOOT_MODULE=!BOOT_MODULE!
+    )
+)
+
+REM [ "x" = "x$RABBITMQ_FEATURE_FLAGS_FILE" ] && RABBITMQ_FEATURE_FLAGS_FILE=${RABBITMQ_MNESIA_DIR}/feature_flags
+if "!RABBITMQ_FEATURE_FLAGS_FILE!"=="" (
+    if "!FEATURE_FLAGS_FILE!"=="" (
+        set RABBITMQ_FEATURE_FLAGS_FILE=!RABBITMQ_MNESIA_DIR!\feature_flags
+    ) else (
+        set RABBITMQ_FEATURE_FLAGS_FILE=!FEATURE_FLAGS_FILE!
     )
 )
 
@@ -397,6 +415,13 @@ if defined RABBITMQ_DEV_ENV (
     if "!SCRIPT_NAME!" == "rabbitmq-plugins" (
         REM We may need to query the running node for the plugins directory
         REM and the "enabled plugins" file.
+        if not "%RABBITMQ_FEATURE_FLAGS_FILE_source%" == "environment" (
+            for /f "delims=" %%F in ('!SCRIPT_DIR!\rabbitmqctl eval "{ok, P} = application:get_env(rabbit, feature_flags_file), io:format(""~s~n"", [P])."') do @set feature_flags_file=%%F
+            if exist "!feature_flags_file!" (
+                set RABBITMQ_FEATURE_FLAGS_FILE=!feature_flags_file!
+            )
+            REM set feature_flags_file=
+        )
         if not "%RABBITMQ_PLUGINS_DIR_source%" == "environment" (
             for /f "delims=" %%F in ('!SCRIPT_DIR!\rabbitmqctl eval "{ok, P} = application:get_env(rabbit, plugins_dir), io:format(""~s~n"", [P])."') do @set plugins_dir=%%F
             if exist "!plugins_dir!" (
@@ -476,6 +501,7 @@ exit /b
 REM Environment cleanup
 set BOOT_MODULE=
 set CONFIG_FILE=
+set FEATURE_FLAGS_FILE=
 set ENABLED_PLUGINS_FILE=
 set LOG_BASE=
 set MNESIA_BASE=

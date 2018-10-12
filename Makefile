@@ -134,7 +134,7 @@ define PROJECT_ENV
 	  ]
 endef
 
-LOCAL_DEPS = sasl mnesia os_mon inets
+LOCAL_DEPS = sasl mnesia os_mon inets compiler syntax_tools
 BUILD_DEPS = rabbitmq_cli syslog
 DEPS = ranch lager rabbit_common ra
 TEST_DEPS = rabbitmq_ct_helpers rabbitmq_ct_client_helpers amqp_client meck proper
