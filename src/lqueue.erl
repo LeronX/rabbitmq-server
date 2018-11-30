@@ -32,45 +32,51 @@
 -type result()    :: 'empty' | {'value', value()}.
 
 -spec new() -> ?MODULE().
--spec drop(?MODULE()) -> ?MODULE().
--spec is_empty(?MODULE()) -> boolean().
--spec len(?MODULE()) -> non_neg_integer().
--spec in(value(), ?MODULE()) -> ?MODULE().
--spec in_r(value(), ?MODULE()) -> ?MODULE().
--spec out(?MODULE()) -> {result(), ?MODULE()}.
--spec out_r(?MODULE()) -> {result(), ?MODULE()}.
--spec join(?MODULE(), ?MODULE()) -> ?MODULE().
--spec foldl(fun ((value(), B) -> B), B, ?MODULE()) -> B.
--spec foldr(fun ((value(), B) -> B), B, ?MODULE()) -> B.
--spec from_list([value()]) -> ?MODULE().
--spec to_list(?MODULE()) -> [value()].
--spec peek(?MODULE()) -> result().
--spec peek_r(?MODULE()) -> result().
 
 new() -> {0, ?QUEUE:new()}.
 
+-spec drop(?MODULE()) -> ?MODULE().
+
 drop({L, Q}) -> {L - 1, ?QUEUE:drop(Q)}.
+
+-spec is_empty(?MODULE()) -> boolean().
 
 is_empty({0, _Q}) -> true;
 is_empty(_)       -> false.
 
+-spec in(value(), ?MODULE()) -> ?MODULE().
+
 in(V, {L, Q}) -> {L+1, ?QUEUE:in(V, Q)}.
 
+-spec in_r(value(), ?MODULE()) -> ?MODULE().
+
 in_r(V, {L, Q}) -> {L+1, ?QUEUE:in_r(V, Q)}.
+
+-spec out(?MODULE()) -> {result(), ?MODULE()}.
 
 out({0, _Q} = Q) -> {empty, Q};
 out({L,  Q})     -> {Result, Q1} = ?QUEUE:out(Q),
                     {Result, {L-1, Q1}}.
 
+-spec out_r(?MODULE()) -> {result(), ?MODULE()}.
+
 out_r({0, _Q} = Q) -> {empty, Q};
 out_r({L,  Q})     -> {Result, Q1} = ?QUEUE:out_r(Q),
                       {Result, {L-1, Q1}}.
 
+-spec join(?MODULE(), ?MODULE()) -> ?MODULE().
+
 join({L1, Q1}, {L2, Q2}) -> {L1 + L2, ?QUEUE:join(Q1, Q2)}.
+
+-spec to_list(?MODULE()) -> [value()].
 
 to_list({_L, Q}) -> ?QUEUE:to_list(Q).
 
+-spec from_list([value()]) -> ?MODULE().
+
 from_list(L) -> {length(L), ?QUEUE:from_list(L)}.
+
+-spec foldl(fun ((value(), B) -> B), B, ?MODULE()) -> B.
 
 foldl(Fun, Init, Q) ->
     case out(Q) of
@@ -78,17 +84,24 @@ foldl(Fun, Init, Q) ->
         {{value, V}, Q1} -> foldl(Fun, Fun(V, Init), Q1)
     end.
 
+-spec foldr(fun ((value(), B) -> B), B, ?MODULE()) -> B.
+
 foldr(Fun, Init, Q) ->
     case out_r(Q) of
         {empty, _Q}      -> Init;
         {{value, V}, Q1} -> foldr(Fun, Fun(V, Init), Q1)
     end.
 
+-spec len(?MODULE()) -> non_neg_integer().
+
 len({L, _}) -> L.
 
+-spec peek(?MODULE()) -> result().
 
 peek({ 0, _Q}) -> empty;
 peek({_L,  Q}) -> ?QUEUE:peek(Q).
+
+-spec peek_r(?MODULE()) -> result().
 
 peek_r({ 0, _Q}) -> empty;
 peek_r({_L,  Q}) -> ?QUEUE:peek_r(Q).

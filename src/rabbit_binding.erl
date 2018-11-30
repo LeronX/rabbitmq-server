@@ -55,47 +55,6 @@
 %% dialyzer into objecting to everything that uses it.
 -type deletions() :: dict:dict().
 
--spec recover([rabbit_exchange:name()], [rabbit_amqqueue:name()]) ->
-                        'ok'.
--spec exists(rabbit_types:binding()) -> boolean() | bind_errors().
--spec add(rabbit_types:binding(), rabbit_types:username()) -> bind_res().
--spec add(rabbit_types:binding(), inner_fun(), rabbit_types:username()) -> bind_res().
--spec remove(rabbit_types:binding())              -> bind_res().
--spec remove(rabbit_types:binding(), inner_fun(), rabbit_types:username()) -> bind_res().
--spec list(rabbit_types:vhost()) -> bindings().
--spec list_for_source
-        (rabbit_types:binding_source()) -> bindings().
--spec list_for_destination
-        (rabbit_types:binding_destination()) -> bindings().
--spec list_for_source_and_destination
-        (rabbit_types:binding_source(), rabbit_types:binding_destination()) ->
-                                                bindings().
--spec info_keys() -> rabbit_types:info_keys().
--spec info(rabbit_types:binding()) -> rabbit_types:infos().
--spec info(rabbit_types:binding(), rabbit_types:info_keys()) ->
-          rabbit_types:infos().
--spec info_all(rabbit_types:vhost()) -> [rabbit_types:infos()].
--spec info_all(rabbit_types:vhost(), rabbit_types:info_keys()) ->
-          [rabbit_types:infos()].
--spec info_all(rabbit_types:vhost(), rabbit_types:info_keys(),
-                    reference(), pid()) -> 'ok'.
--spec has_for_source(rabbit_types:binding_source()) -> boolean().
--spec remove_for_source(rabbit_types:binding_source()) -> bindings().
--spec remove_for_destination
-        (rabbit_types:binding_destination(), boolean()) -> deletions().
--spec remove_transient_for_destination
-        (rabbit_types:binding_destination()) -> deletions().
--spec process_deletions(deletions(), rabbit_types:username()) -> rabbit_misc:thunk('ok').
--spec combine_deletions(deletions(), deletions()) -> deletions().
--spec add_deletion
-        (rabbit_exchange:name(),
-         {'undefined' | rabbit_types:exchange(),
-          'deleted' | 'not_deleted',
-          bindings()},
-         deletions()) ->
-            deletions().
--spec new_deletions() -> deletions().
-
 %%----------------------------------------------------------------------------
 
 -define(INFO_KEYS, [source_name, source_kind,
@@ -104,6 +63,10 @@
                     vhost]).
 
 %% Global table recovery
+
+-spec recover([rabbit_exchange:name()], [rabbit_amqqueue:name()]) ->
+                        'ok'.
+
 recover() ->
     rabbit_misc:table_filter(
         fun (Route) ->
@@ -157,13 +120,19 @@ recover_semi_durable_route_txn(R = #route{binding = B}, X) ->
           (Serial,     false) -> x_callback(Serial,      X, add_binding, B)
       end).
 
+-spec exists(rabbit_types:binding()) -> boolean() | bind_errors().
+
 exists(Binding) ->
     binding_action(
       Binding, fun (_Src, _Dst, B) ->
                        rabbit_misc:const(mnesia:read({rabbit_route, B}) /= [])
                end, fun not_found_or_absent_errs/1).
 
+-spec add(rabbit_types:binding(), rabbit_types:username()) -> bind_res().
+
 add(Binding, ActingUser) -> add(Binding, fun (_Src, _Dst) -> ok end, ActingUser).
+
+-spec add(rabbit_types:binding(), inner_fun(), rabbit_types:username()) -> bind_res().
 
 add(Binding, InnerFun, ActingUser) ->
     binding_action(
@@ -209,7 +178,11 @@ add(Src, Dst, B, ActingUser) ->
         true  -> rabbit_misc:const({error, binding_not_found})
     end.
 
+-spec remove(rabbit_types:binding())              -> bind_res().
+
 remove(Binding) -> remove(Binding, fun (_Src, _Dst) -> ok end, ?INTERNAL_USER).
+
+-spec remove(rabbit_types:binding(), inner_fun(), rabbit_types:username()) -> bind_res().
 
 remove(Binding, InnerFun, ActingUser) ->
     binding_action(
@@ -238,6 +211,8 @@ remove(Src, Dst, B, ActingUser) ->
                   B#binding.source, [B], new_deletions(), false),
     process_deletions(Deletions, ActingUser).
 
+-spec list(rabbit_types:vhost()) -> bindings().
+
 list(VHostPath) ->
     VHostResource = rabbit_misc:r(VHostPath, '_'),
     Route = #route{binding = #binding{source      = VHostResource,
@@ -247,6 +222,9 @@ list(VHostPath) ->
     [B || #route{binding = B} <- mnesia:dirty_match_object(rabbit_route,
                                                            Route)].
 
+-spec list_for_source
+        (rabbit_types:binding_source()) -> bindings().
+
 list_for_source(SrcName) ->
     mnesia:async_dirty(
       fun() ->
@@ -254,6 +232,9 @@ list_for_source(SrcName) ->
               [B || #route{binding = B}
                         <- mnesia:match_object(rabbit_route, Route, read)]
       end).
+
+-spec list_for_destination
+        (rabbit_types:binding_destination()) -> bindings().
 
 list_for_destination(DstName) ->
     mnesia:async_dirty(
@@ -266,6 +247,10 @@ list_for_destination(DstName) ->
                                           reverse_route(Route), read)]
       end).
 
+-spec list_for_source_and_destination
+        (rabbit_types:binding_source(), rabbit_types:binding_destination()) ->
+                                                bindings().
+
 list_for_source_and_destination(SrcName, DstName) ->
     mnesia:async_dirty(
       fun() ->
@@ -275,6 +260,8 @@ list_for_source_and_destination(SrcName, DstName) ->
               [B || #route{binding = B} <- mnesia:match_object(rabbit_route,
                                                                Route, read)]
       end).
+
+-spec info_keys() -> rabbit_types:info_keys().
 
 info_keys() -> ?INFO_KEYS.
 
@@ -294,17 +281,32 @@ i(routing_key,      #binding{key         = RoutingKey}) -> RoutingKey;
 i(arguments,        #binding{args        = Arguments})  -> Arguments;
 i(Item, _) -> throw({bad_argument, Item}).
 
+-spec info(rabbit_types:binding()) -> rabbit_types:infos().
+
 info(B = #binding{}) -> infos(?INFO_KEYS, B).
+
+-spec info(rabbit_types:binding(), rabbit_types:info_keys()) ->
+          rabbit_types:infos().
 
 info(B = #binding{}, Items) -> infos(Items, B).
 
+-spec info_all(rabbit_types:vhost()) -> [rabbit_types:infos()].
+
 info_all(VHostPath) -> map(VHostPath, fun (B) -> info(B) end).
 
+-spec info_all(rabbit_types:vhost(), rabbit_types:info_keys()) ->
+          [rabbit_types:infos()].
+
 info_all(VHostPath, Items) -> map(VHostPath, fun (B) -> info(B, Items) end).
+
+-spec info_all(rabbit_types:vhost(), rabbit_types:info_keys(),
+                    reference(), pid()) -> 'ok'.
 
 info_all(VHostPath, Items, Ref, AggregatorPid) ->
     rabbit_control_misc:emitting_map(
       AggregatorPid, Ref, fun(B) -> info(B, Items) end, list(VHostPath)).
+
+-spec has_for_source(rabbit_types:binding_source()) -> boolean().
 
 has_for_source(SrcName) ->
     Match = #route{binding = #binding{source = SrcName, _ = '_'}},
@@ -315,6 +317,8 @@ has_for_source(SrcName) ->
     contains(rabbit_route, Match) orelse
         contains(rabbit_semi_durable_route, Match).
 
+-spec remove_for_source(rabbit_types:binding_source()) -> bindings().
+
 remove_for_source(SrcName) ->
     lock_resource(SrcName),
     Match = #route{binding = #binding{source = SrcName, _ = '_'}},
@@ -323,8 +327,14 @@ remove_for_source(SrcName) ->
         mnesia:dirty_match_object(rabbit_route, Match) ++
             mnesia:dirty_match_object(rabbit_semi_durable_route, Match))).
 
+-spec remove_for_destination
+        (rabbit_types:binding_destination(), boolean()) -> deletions().
+
 remove_for_destination(DstName, OnlyDurable) ->
     remove_for_destination(DstName, OnlyDurable, fun remove_routes/1).
+
+-spec remove_transient_for_destination
+        (rabbit_types:binding_destination()) -> deletions().
 
 remove_transient_for_destination(DstName) ->
     remove_for_destination(DstName, false, fun remove_transient_routes/1).
@@ -531,11 +541,23 @@ anything_but( NotThis, NotThis,    This) -> This;
 anything_but( NotThis,    This, NotThis) -> This;
 anything_but(_NotThis,    This,    This) -> This.
 
+-spec new_deletions() -> deletions().
+
 new_deletions() -> dict:new().
+
+-spec add_deletion
+        (rabbit_exchange:name(),
+         {'undefined' | rabbit_types:exchange(),
+          'deleted' | 'not_deleted',
+          bindings()},
+         deletions()) ->
+            deletions().
 
 add_deletion(XName, Entry, Deletions) ->
     dict:update(XName, fun (Entry1) -> merge_entry(Entry1, Entry) end,
                 Entry, Deletions).
+
+-spec combine_deletions(deletions(), deletions()) -> deletions().
 
 combine_deletions(Deletions1, Deletions2) ->
     dict:merge(fun (_XName, Entry1, Entry2) -> merge_entry(Entry1, Entry2) end,
@@ -545,6 +567,8 @@ merge_entry({X1, Deleted1, Bindings1}, {X2, Deleted2, Bindings2}) ->
     {anything_but(undefined, X1, X2),
      anything_but(not_deleted, Deleted1, Deleted2),
      [Bindings1 | Bindings2]}.
+
+-spec process_deletions(deletions(), rabbit_types:username()) -> rabbit_misc:thunk('ok').
 
 process_deletions(Deletions, ActingUser) ->
     AugmentedDeletions =
